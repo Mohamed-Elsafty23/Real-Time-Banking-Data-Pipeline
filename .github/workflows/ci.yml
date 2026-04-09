@@ -2,20 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [main, dev]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  tests:
+  lint-and-test:
     runs-on: ubuntu-latest
 
     services:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_pass
           POSTGRES_DB: banking
         ports:
           - 5432:5432
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -37,38 +37,35 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install dbt-snowflake
+          pip install ruff pytest dbt-snowflake
 
-      - name: Run linters
-        run: |
-          pip install ruff
-          ruff check .
+      - name: Lint
+        run: ruff check .
 
-      - name: Run unit tests
-        run: |
-          pip install pytest
-          pytest tests/
+      - name: Unit tests
+        run: pytest tests/
 
-      - name: Setup dbt profile
+      - name: dbt compile (requires Snowflake secrets)
+        if: env.SNOWFLAKE_ACCOUNT != ''
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
         run: |
           mkdir -p ~/.dbt
-          cat > ~/.dbt/profiles.yml <<EOL
+          cat > ~/.dbt/profiles.yml <<'YAML'
           banking_dbt:
             target: dev
             outputs:
               dev:
                 type: snowflake
-                account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-                user: ${{ secrets.SNOWFLAKE_USER }}
-                password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+                account: "${SNOWFLAKE_ACCOUNT}"
+                user: "${SNOWFLAKE_USER}"
+                password: "${SNOWFLAKE_PASSWORD}"
                 role: ACCOUNTADMIN
                 database: BANKING
-                warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+                warehouse: "${SNOWFLAKE_WAREHOUSE}"
                 schema: ANALYTICS
-          EOL
-
-      - name: dbt compile (validation)
-        run: |
-          cd banking_dbt
-          dbt deps
-          dbt compile
+          YAML
+          cd banking_dbt && dbt deps && dbt compile
