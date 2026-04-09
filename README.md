@@ -49,6 +49,10 @@ Kafka advertised listeners are set for typical Linux host access (`localhost:290
 
 Compared with a minimal tutorial layout, this version uses a dedicated Docker network name, configurable raw table list for the bronze DAG (`RAW_TABLE_LIST`), a configurable Kafka Connect base URL (`KAFKA_CONNECT_URL`), Debezium connector name and replication slot names that match the `core_banking_oltp` topic prefix, explicit dbt model defaults in `dbt_project.yml`, and renamed Airflow DAG IDs for clarity. The SCD DAG now chains snapshot and mart tasks in the correct order.
 
+If you previously ran the older tutorial connector (`postgres-connector`, topic prefix `banking_server`, slot `banking_slot`), delete that connector and replication slot in Postgres before registering this project’s connector, or point the consumer at the matching topic names.
+
+Python entrypoints load `.env` from the component folder first, then the repository root, so you can centralize shared variables at the root if you prefer.
+
 ---
 
 **Origin and changes:** This repository started from the public “banking modern data stack” tutorial project and was reworked for my own learning and CV: naming, operational defaults, documentation, diagram, tests, CI cleanup, and the fixes and extensions above. The original idea and overall architecture pattern remain recognizable, but the implementation details and presentation here are mine.

@@ -17,7 +17,9 @@ from dotenv import load_dotenv
 # -----------------------------
 # Load secrets from consumer/.env (works regardless of cwd)
 # -----------------------------
-load_dotenv(Path(__file__).resolve().parent / ".env")
+_cons = Path(__file__).resolve().parent
+load_dotenv(_cons / ".env")
+load_dotenv(_cons.parent / ".env")
 
 CDC_TOPICS = (
     "core_banking_oltp.public.customers",

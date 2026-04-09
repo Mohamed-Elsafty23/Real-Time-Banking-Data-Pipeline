@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 # -----------------------------
 # Load environment variables (script directory, not cwd)
 # -----------------------------
-load_dotenv(Path(__file__).resolve().parent / ".env")
+_kd = Path(__file__).resolve().parent
+load_dotenv(_kd / ".env")
+load_dotenv(_kd.parent / ".env")
 
 # -----------------------------
 # Build connector JSON in memory
