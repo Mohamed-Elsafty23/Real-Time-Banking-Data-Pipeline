@@ -1,0 +1,47 @@
+Real-Time Banking Data Pipeline — architecture diagram (overview)
+================================================================
+
+This diagram shows an end-to-end real-time banking analytics stack: data leaves a relational source, streams through capture and storage, is orchestrated into a cloud warehouse with layered modeling, and is consumed in BI—with containers and Git-based DevOps around it.
+
+Data source and ingestion
+-------------------------
+- Source: a relational database (RDMS).
+- CDC / streaming: change data is captured in near real time with Kafka and Debezium; the arrow runs from the RDMS into this streaming layer.
+
+Data lake landing
+-----------------
+- Object storage: streamed data lands in an Amazon S3 bucket (landing / data lake zone).
+
+Orchestration and warehouse
+---------------------------
+- Orchestration: Apache Airflow drives ingestion, loading, and downstream jobs across the stack.
+- Data warehouse: Snowflake holds the data. Inside Snowflake the model follows a medallion-style progression:
+  - Raw (bronze): initial landing in the warehouse.
+  - Cleaned (silver): standardized, validated, conformed data.
+  - Business ready (gold): curated, aggregated, and modeled datasets for analytics.
+- Transformations: dbt performs the processing steps that promote data from raw → cleaned → business ready.
+
+Visualization
+-------------
+- Reporting: business-ready data is connected to Power BI for dashboards and self-service analytics.
+
+Infrastructure and DevOps
+-------------------------
+- Containerization: Docker is shown as the packaging/runtime context for pipeline components.
+- CI/CD and DevOps: GitHub represents version control and automated build/deploy pipelines for the project.
+
+End-to-end flow (logical order)
+-------------------------------
+RDMS → Kafka + Debezium (CDC) → S3 → Snowflake (raw) → dbt → Snowflake (cleaned) → dbt → Snowflake (business ready) → Power BI, with Airflow coordinating warehouse-related work.
+
+---
+
+Project stack notes (this repo / local variant)
+-----------------------------------------------
+- Data generator simulates banking transactions, accounts, and customers (e.g. Faker).
+- Kafka + Debezium stream CDC into MinIO (S3-compatible storage) where applicable.
+- Airflow orchestrates ingestion and snapshots into Snowflake.
+- Snowflake: bronze → silver → gold layering.
+- dbt: transformations, marts, and SCD Type-2 snapshots.
+- CI/CD: GitHub Actions for tests, build, and deployment.
+- Tools: DBeaver, Power BI.

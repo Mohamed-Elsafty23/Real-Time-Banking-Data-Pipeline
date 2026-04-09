@@ -1,0 +1,20 @@
+# Data generator → Postgres
+pyyaml
+psycopg2-binary
+faker
+
+# Debezium connector registration
+python-dotenv
+requests
+
+# Kafka → MinIO consumer
+kafka-python
+boto3
+fastparquet
+pandas
+
+# Transformations (local dbt runs; Airflow image installs dbt separately)
+dbt-snowflake
+
+# Optional local Airflow (compose uses the Dockerfile image instead)
+apache-airflow
