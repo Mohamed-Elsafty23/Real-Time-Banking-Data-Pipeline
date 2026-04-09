@@ -14,6 +14,7 @@ A data engineering pipeline that captures changes from a banking database in rea
 4. **Airflow** picks up new files from MinIO and loads them into **Snowflake** raw tables (bronze layer).
 5. **dbt** builds staging views, fact/dimension tables, and SCD Type 2 snapshots on top of that raw data.
 6. **GitHub Actions** handles CI (lint, tests, dbt compile) and CD (dbt run on merge).
+7. **Power BI** connects to the warehouse (gold-layer models) for dashboards and self-service analytics.
 
 ## Tech stack
 
@@ -26,8 +27,21 @@ A data engineering pipeline that captures changes from a banking database in rea
 | Orchestration | Apache Airflow |
 | Warehouse | Snowflake |
 | Transformations | dbt |
+| Visualization | Power BI |
 | Containers | Docker Compose |
 | CI/CD | GitHub Actions |
+
+## Power BI dashboard
+
+The report summarizes synthetic banking activity from the pipeline: headline KPIs (customers, average balance, accounts, transactions), transaction mix by type, and top accounts and customers by transaction amount.
+
+![Power BI banking dashboard](Banking_Dashboard.png)
+
+## Power BI data model
+
+The semantic model is a star schema centered on **`FACT_TRANSACTIONS`**, with **`DIM_CUSTOMERS`** and **`DIM_ACCOUNTS`**. Dimensions include SCD-style fields (`EFFECTIVE_FROM`, `EFFECTIVE_TO`, `IS_CURRENT`) so historical versions align with dbt snapshots. Relationships connect facts to dimensions for filtering and aggregation in the visuals above.
+
+![Power BI data model](Banking_model.png)
 
 ## Project structure
 
