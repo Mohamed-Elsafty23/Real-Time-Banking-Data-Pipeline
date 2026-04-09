@@ -4,12 +4,15 @@ Bronze ingestion: list and download Parquet from MinIO, then COPY into Snowflake
 import os
 import boto3
 import snowflake.connector
+from pathlib import Path
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-load_dotenv()
+_dags_dir = Path(__file__).resolve().parent
+load_dotenv(_dags_dir / ".env")
+load_dotenv(_dags_dir.parent.parent / ".env")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")

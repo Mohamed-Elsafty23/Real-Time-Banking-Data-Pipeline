@@ -14,3 +14,10 @@ def test_dag_files_present():
     dags = Path(__file__).resolve().parents[1] / "docker" / "dags"
     assert (dags / "minio_to_snowflake_dag.py").is_file()
     assert (dags / "scd_snapshots.py").is_file()
+
+
+def test_architecture_png_for_readme():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "Banking_Data_Pipeline.png").is_file()
