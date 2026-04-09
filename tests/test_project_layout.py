@@ -16,7 +16,8 @@ def test_dag_files_present():
     assert (dags / "scd_snapshots.py").is_file()
 
 
-def test_architecture_png_for_readme():
+def test_readme_architecture_png_present():
+    """README embeds Banking_Data_Pipeline.png; keep file in repo for GitHub rendering."""
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]

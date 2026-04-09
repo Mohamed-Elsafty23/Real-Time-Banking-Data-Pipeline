@@ -1,47 +1,43 @@
 # Real-Time Banking Data Pipeline
 
-**Portfolio project —** synthetic core-banking data, CDC streaming, object storage, Airflow orchestration, Snowflake bronze ingest, and dbt analytics (staging, marts, SCD2 snapshots), with Docker Compose locally and GitHub Actions for automation.
+Personal portfolio project: an **end-to-end streaming and batch pipeline** that turns synthetic core-banking activity into **analytics-ready models** in Snowflake—wired with **CDC**, a **lake-style landing zone**, **orchestration**, and **dbt** transformations, all reproducible with **Docker Compose**.
 
 ---
 
 ## Architecture
 
-High-level flow: OLTP → Kafka/Debezium → Parquet in MinIO → Airflow → Snowflake raw → dbt models. CI/CD runs alongside in GitHub Actions.
+Flow: synthetic OLTP writes → PostgreSQL → Debezium/Kafka CDC → batched Parquet in MinIO → Airflow loads raw tables in Snowflake → dbt builds staging, facts, dimensions, and SCD Type 2 snapshots. CI/CD runs on GitHub Actions.
 
-![End-to-end pipeline architecture](Banking_Data_Pipeline.png)
+![End-to-end architecture: data generator → PostgreSQL → Debezium/Kafka → consumer → MinIO → Airflow → Snowflake → dbt; GitHub Actions for CI/CD](Banking_Data_Pipeline.png)
 
-*Figure: components and data movement (topic prefix in this repo: `core_banking_oltp.public.*`).*
+*Editable source for the diagram (adjust layout or export SVG): [`docs/architecture.drawio`](docs/architecture.drawio) — open in [diagrams.net](https://app.diagrams.net/).*
 
-For an editable version (layers, colors, export to SVG), open [`docs/architecture.drawio`](docs/architecture.drawio) in [draw.io / diagrams.net](https://app.diagrams.net/).
-
----
-
-## What it does
-
-A Python generator continuously inserts customers, accounts, and transactions into PostgreSQL. Debezium captures changes from the WAL into Kafka topics. A consumer batches events into Parquet and uploads them to MinIO. Airflow downloads new objects and loads them into Snowflake raw tables. dbt builds staging views, dimensional and fact marts, and snapshot-based slowly changing dimensions. GitHub Actions lint the Python code, run lightweight tests, and compile or deploy dbt when you configure secrets.
+**CDC topic naming in this repo:** `core_banking_oltp.public.*` (customers, accounts, transactions).
 
 ---
 
-## Portfolio highlights (CV-friendly)
+## What I built (portfolio highlights)
 
-- Designed an **event-driven path** from OLTP to a warehouse using **CDC** (Debezium) and **Kafka**, not only batch files.
-- Landed streaming-derived data in **S3-compatible storage** (MinIO) as **Parquet**, then **orchestrated** loads with **Airflow** and modeled in **dbt** on **Snowflake**.
-- Containerized the stack with **Docker Compose** (health checks, broker listeners suited to Linux hosts) and added **CI** (Ruff, pytest, dbt compile) plus optional **CD** for dbt.
+- **Change data capture** from PostgreSQL (logical replication / Debezium) into Kafka topics with a project-specific connector and replication slot.
+- **Stream-to-lake path:** a Python consumer batches CDC payloads and writes **partitioned Parquet** to **MinIO** (S3-compatible).
+- **Orchestration:** Airflow DAGs for **bronze ingest** (MinIO → Snowflake) and for **dbt snapshots + marts** with a correct task dependency chain.
+- **Modeling:** dbt **staging → marts** (facts/dimensions) and **snapshots** for slowly changing dimensions.
+- **Platform hygiene:** Docker Compose with health checks and sensible startup order, **Ruff** + **pytest** in CI, `.env.example`, and layout tests so the repo stays verifiable without a full stack running in GitHub.
 
 ---
 
 ## Tech stack
 
-| Layer | Tools |
-|--------|--------|
+| Layer | Technologies |
+|--------|----------------|
 | Source OLTP | PostgreSQL |
-| Synthetic load | Python, Faker, psycopg2 |
-| CDC / streaming | Apache Kafka, Zookeeper, Debezium Connect |
-| Data lake landing | MinIO (S3 API), Parquet |
+| Data simulation | Python, Faker, psycopg2 |
+| Streaming / CDC | Kafka, Zookeeper, Debezium Connect |
+| Object storage | MinIO |
 | Orchestration | Apache Airflow (image includes dbt) |
-| Warehouse & transforms | Snowflake, dbt (staging, marts, snapshots) |
+| Warehouse & transforms | Snowflake, dbt |
 | Local runtime | Docker Compose |
-| Automation | GitHub Actions (`.github/workflows`) |
+| Automation | GitHub Actions (`ci.yml`, `cd.yml`) |
 
 ---
 
@@ -49,67 +45,38 @@ A Python generator continuously inserts customers, accounts, and transactions in
 
 | Path | Role |
 |------|------|
-| `data-generator/` | Inserts fake banking rows; `--once` or bounded loop |
-| `kafka-debezium/` | Registers Postgres CDC connector (`core_banking_oltp`, custom slot name) |
-| `consumer/` | Kafka → batched Parquet → MinIO |
-| `docker/dags/` | DAGs: bronze MinIO→Snowflake; dbt snapshots + marts |
-| `banking_dbt/` | dbt project (sources, staging, marts, snapshots) |
-| `postgres/` | OLTP DDL |
-| `tests/` | Layout checks for CI |
-| `docs/architecture.drawio` | Editable diagram |
-| `Banking_Data_Pipeline.png` | Architecture figure (used above) |
+| `data-generator/` | Inserts synthetic customers, accounts, transactions (`--once` or loop). |
+| `kafka-debezium/` | Registers the Postgres CDC connector (`KAFKA_CONNECT_URL` override supported). |
+| `consumer/` | Kafka → MinIO Parquet batches. |
+| `docker/dags/` | DAGs: bronze sync and dbt snapshot/marts. |
+| `banking_dbt/` | Sources, staging, marts, snapshots. |
+| `postgres/` | OLTP DDL. |
+| `tests/` | Fast checks used in CI. |
+
+**Airflow DAG IDs:** `raw_layer_snowflake_sync` (bronze), `analytics_scd2_refresh` (snapshots then marts).
 
 ---
 
-## Prerequisites
+## Run it locally (checklist)
 
-- Docker and Docker Compose
-- A Snowflake account (database, warehouse, role, and a **RAW** schema with tables/stages aligned to your COPY strategy)
-- Python 3.11+ if you run the generator, connector script, or consumer on the host (see `requirements.txt`)
-- For GitHub Actions: repository secrets for Postgres (CI service), Snowflake (dbt compile/run), as in `.github/workflows`
+1. **Environment:** Copy [`.env.example`](.env.example) to `.env` at the repo root. Add matching `.env` files under `consumer/`, `data-generator/`, `kafka-debezium/`, and `docker/dags/` as needed (scripts also load the root `.env` after the local one).
+2. **Infra:** `docker compose up -d` (builds the Airflow image on first run).
+3. **Schema:** Apply [`postgres/schema.sql`](postgres/schema.sql) if the database is empty.
+4. **Pipeline:** Start the generator → POST the Debezium connector → run the consumer → confirm objects in MinIO → enable/trigger Airflow DAGs and run dbt (or rely on the dbt DAG).
 
----
+**Host Kafka:** consumers on the machine use `localhost:29092` (see `docker-compose.yml`).
 
-## Run locally (condensed)
-
-1. **Environment:** Copy `.env.example` to `.env` at the repo root. Fill `consumer/.env`, `data-generator/.env`, `kafka-debezium/.env`, and `docker/dags/.env` (or rely on root `.env` where variables overlap — scripts load component dir first, then root).
-2. **Infra:** `docker compose up -d` (builds Airflow image on first run).
-3. **OLTP schema:** Apply `postgres/schema.sql` to the Compose Postgres if the volume is empty.
-4. **MinIO:** Ensure the bucket from `MINIO_BUCKET` exists (consumer creates it if missing).
-5. **CDC:** When Kafka Connect is up, run `python kafka-debezium/generate_and_post_connector.py` (set `KAFKA_CONNECT_URL` if not `http://localhost:8083`).
-6. **Stream path:** Start `data-generator/faker_generator.py`, then `consumer/kafka_to_minio.py` (Kafka bootstrap should match your `.env`, e.g. `localhost:29092` on Linux).
-7. **Warehouse:** In Snowflake, align raw tables and file format with what the bronze DAG expects (Parquet, schema `RAW` or as in your `sources.yml`).
-8. **Airflow:** Open the UI (port 8080 by default), enable **`raw_layer_snowflake_sync`** and **`analytics_scd2_refresh`**, confirm connections/credentials from `docker/dags/.env`.
-9. **dbt:** Install profiles under `~/.dbt` (or the path Airflow uses) and run `dbt build` from `banking_dbt/` when validating outside Airflow.
-
-Kafka uses `localhost:29092` on the host for the external listener; Zookeeper and Kafka expose health checks so Connect starts after the broker is ready.
+Optional bronze tuning: set `RAW_TABLE_LIST` (comma-separated) in the Airflow/dags environment if you change raw table names.
 
 ---
 
-## Steps to finish the project (checklist)
+## CI/CD
 
-Use this as a end-to-end completion guide and as interview talking points.
-
-1. **Repository** — Push to GitHub, set default branch to `main`, add a short repo description and topics (e.g. `dbt`, `airflow`, `kafka`, `snowflake`, `cdc`, `data-engineering`).
-2. **Secrets** — Add GitHub Actions secrets for Snowflake and CI Postgres per `.github/workflows/ci.yml` and `cd.yml`; confirm CI passes on a branch.
-3. **Snowflake** — Create database, warehouse, and **RAW** schema; create or generate raw tables compatible with Parquet `COPY`; grant the Airflow/dbt role usage rights.
-4. **MinIO** — Confirm bucket, prefixes (`customers/`, `accounts/`, `transactions/`), and that Parquet files appear after the consumer runs.
-5. **Debezium** — One active connector with this repo’s names; remove any old tutorial connector/slot if topics do not match (`core_banking_oltp.public.*`).
-6. **Airflow** — DAGs parsed without import errors; bronze DAG runs successfully; SCD DAG runs dbt with a valid profiles directory inside the container.
-7. **dbt** — `dbt build` or `dbt run` + `dbt test` succeed; document target and schema in your portfolio if recruiters ask.
-8. **Evidence** — Keep one screenshot or query result (raw row counts, mart sample) for interviews; optional: link `Banking_Dashboard.png` or your BI file if you use one.
-9. **README** — Ensure this file and `Banking_Data_Pipeline.png` stay in sync with the real architecture; update the figure when you change the stack.
+- **CI** (push/PR to `main` / `dev`): install deps, **Ruff**, **pytest**, **dbt compile** (Snowflake secrets required for compile in your fork).
+- **CD** (push to `main`): dbt run and test against your configured Snowflake target when secrets are set.
 
 ---
 
-## Customizations in this version
+## Acknowledgement
 
-Docker network name **`rtbanking-lakehouse-net`**; bronze DAG **`raw_layer_snowflake_sync`** with optional **`RAW_TABLE_LIST`**; SCD/marts DAG **`analytics_scd2_refresh`** with `dbt snapshot` → `dbt run --select marts`; Debezium connector **`rtbanking-postgres-cdc`** and slot **`rtbanking_cdc_slot`**; **`KAFKA_CONNECT_URL`** override; dbt defaults for staging (views) and marts (tables); dual **`.env`** resolution (folder + repo root).
-
-If you still have the older tutorial connector (`postgres-connector`, prefix `banking_server`, slot `banking_slot`), remove it and the old replication slot before registering this project’s connector, or the consumer will not see the right topics.
-
----
-
-## Origin and attribution
-
-This repository grew out of the public **banking modern data stack** tutorial. I reworked naming, operations, Airflow DAGs, dbt project defaults, tests, CI, documentation, and the architecture assets (`Banking_Data_Pipeline.png`, `docs/architecture.drawio`) for my own portfolio. The overall pattern is similar; the specifics and presentation here are my own.
+This project is **based on** the public **banking modern data stack** tutorial-style repository. I **reimplemented and extended** it for my portfolio: naming (topics, connector, DAGs, Docker network), Compose hardening, dbt project defaults, env handling, tests, CI cleanup, documentation, and the architecture assets above—including **`Banking_Data_Pipeline.png`** and **`docs/architecture.drawio`**. The overall pattern is familiar; the specifics here are how I chose to ship and document it.
